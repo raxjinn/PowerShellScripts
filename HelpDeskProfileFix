@@ -1,0 +1,70 @@
+Start-Transcript "ADUsernameScript.log"
+
+Import-Module ActiveDirectory
+
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+$UsernameForm = New-Object System.Windows.Forms.Form
+$UserNameForm.Text = "Profile Fix"
+$UserNameForm.Size = New-Object System.Drawing.Size(350,200)
+$UserNameForm.StartPosition = 'CenterScreen'
+
+$OKButton = New-Object System.Windows.Forms.Button
+$OKButton.Location = New-Object System.Drawing.Point(75,120)
+$OKButton.Size = New-Object System.Drawing.Size(75,23)
+$OKButton.Text = 'OK'
+$OKButton.DialogResult = [System.Windows.Forms.DialogResult]::OK
+$UserNameForm.AcceptButton = $OKButton
+$UserNameForm.Controls.Add($OKButton)
+
+$CancelButton = New-Object System.Windows.Forms.Button
+$CancelButton.Location = New-Object System.Drawing.Point(150,120)
+$CancelButton.Size = New-Object System.Drawing.Size(75,23)
+$CancelButton.Text = 'Cancel'
+$CancelButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+$UserNameForm.CancelButton = $CancelButton
+$UserNameForm.Controls.Add($CancelButton)
+
+$UserNameLabel = New-Object System.Windows.Forms.Label
+$UserNameLabel.Location = New-Object System.Drawing.Point(10,20)
+$UserNameLabel.Size = New-Object System.Drawing.Size(300,60)
+$UserNameLabel.Text = 'Warning: All Citrix sessions for this user will be logged off.
+
+Please Enter the Username Below:'
+$UserNameForm.Controls.Add($UserNameLabel)
+
+$UserNameTextBox = New-Object System.Windows.Forms.TextBox
+$UserNameTextBox.Location = New-Object System.Drawing.Point(10,80)
+$UserNameTextBox.Size = New-Object System.Drawing.Size(260,20)
+$UserNameForm.Controls.Add($UserNameTextBox)
+
+$UserNameForm.Topmost = $true
+
+$result = $UserNameForm.ShowDialog()
+$ADUser = $null
+
+While (($result -eq "OK") -and (($ADUser -eq $null) -or ($ADUser -eq ""))) {
+    If ($UserNameTextBox.Text -eq "") {
+        $UserNameLabel.Text = 'Warning: No username was specified.
+
+    Please Enter the Username Below:'
+        $result = $UserNameForm.ShowDialog()
+    } Else {
+        $ADUser = $UserNameTextBox.Text | Get-AdUser
+        If (!($ADUser)) {
+            $UserNameLabel.Text = 'Warning: User does not exist.
+
+        Please Enter the Username Below:'
+            $result = $UserNameForm.ShowDialog()
+        }
+    }
+}
+
+If (($result -ne "Cancel") -and ($ADUser)) {
+    $ADUser.SamAccountName | Out-File "$env:SystemDrive\Temp\UserOutput.txt"
+}
+
+Start-ScheduledTask -TaskName "CTXProfileFix"
+
+Stop-Transcript
