@@ -1,0 +1,38 @@
+$Servers = Get-Content "C:\Temp\Servers.txt"
+
+$Servers | Foreach {
+    $TempPath = Test-Path "\\$_\C$\Temp"
+    If ($TempPath -eq $False){
+        New-Item -ItemType Directory -Name Temp -Path "\\$Servers\C$\"
+        Copy-Item "C:\Temp\gs927w64.exe" "\\$_\C$\Temp"
+    } elseif ($TempPath -eq $True){
+        Copy-Item "C:\Temp\gs927w64.exe" "\\$_\C$\Temp"
+    }
+}
+
+Invoke-Command -ComputerName $Servers {
+
+change user /install
+
+$Uninstall = Get-ChildItem -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall | Get-ItemProperty | Where-Object {$_.DisplayName -match "GPL Ghost"}
+
+    If ($Uninstall -eq $True){
+        If (($Uninstall.DisplayVersion -match "9.26") -or ($Uninstall.DisplayVersion -match "9.25")) {
+            $Uninstall = $Uninstall | Select-Object -ExpandProperty UninstallString
+            Start-Process -FilePath $Uninstall -ArgumentList "/S" -Wait
+            Start-Process -FilePath "C:\Temp\gs927w64.exe" -ArgumentList "/S" -Wait
+                If (Test-Path 'C:\Program Files\gs\gs9.26') {
+                    Remove-Item 'C:\Program Files\gs\gs9.26' -Force -Recurse
+                }
+        }
+    }
+    If ($Uninstall -eq $null) {
+        Start-Process -FilePath "C:\Temp\gs927w64.exe" -ArgumentList "/S" -Wait
+    } else {
+        Start-Process -FilePath "C:\Temp\gs927w64.exe" -ArgumentList "/S" -Wait
+    }
+    If (Test-Path "C:\Program Files\gs\gs9.26") {
+            Remove-Item 'C:\Program Files\gs\gs9.26' -Force -Recurse 
+    }
+change user /execute
+}
