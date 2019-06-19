@@ -1,0 +1,51 @@
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+$print = New-Object System.Windows.Forms.Form
+$print.Text = 'Default Printer'
+$print.Size = New-Object System.Drawing.Size(300,200)
+$print.StartPosition = 'CenterScreen'
+
+$OKButton = New-Object System.Windows.Forms.Button
+$OKButton.Location = New-Object System.Drawing.Point(75,120)
+$OKButton.Size = New-Object System.Drawing.Size(75,23)
+$OKButton.Text = 'OK'
+$OKButton.DialogResult = [System.Windows.Forms.DialogResult]::OK
+$print.AcceptButton = $OKButton
+$print.Controls.Add($OKButton)
+
+$CancelButton = New-Object System.Windows.Forms.Button
+$CancelButton.Location = New-Object System.Drawing.Point(150,120)
+$CancelButton.Size = New-Object System.Drawing.Size(75,23)
+$CancelButton.Text = 'Cancel'
+$CancelButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+$print.CancelButton = $CancelButton
+$print.Controls.Add($CancelButton)
+
+$label = New-Object System.Windows.Forms.Label
+$label.Location = New-Object System.Drawing.Point(10,20)
+$label.Size = New-Object System.Drawing.Size(280,20)
+$label.Text = 'Please select a printer:'
+$print.Controls.Add($label)
+
+$listBox = New-Object System.Windows.Forms.ListBox
+$listBox.Location = New-Object System.Drawing.Point(10,40)
+$listBox.Size = New-Object System.Drawing.Size(260,20)
+$listBox.Height = 80
+
+$Printerlist = Get-WmiObject win32_Printer | Select -ExpandProperty Name
+
+$PrinterList | foreach {
+    [void] $listBox.Items.Add($_)
+}
+
+$print.Controls.Add($listBox)
+
+$print.Topmost = $true
+
+$result = $print.ShowDialog()
+
+if (($result -eq [System.Windows.Forms.DialogResult]::OK) -and ($listBox.SelectedItem -ne "$null")) {
+    $Printer = Get-WmiObject win32_printer | Where {$_.Name -eq $listBox.SelectedItem}
+    $Printer.SetDefaultPrinter()
+}
