@@ -1,0 +1,19 @@
+Add-PSSnapin Citrix.*
+
+$Servers = Get-BrokerMachine | Select MachineName,LoadIndex
+
+$Servers | foreach `
+{
+    $MachineName = $_.MachineName.Replace("NEXTCARE\","")
+    $LoadIndex = $_.LoadIndex
+
+    If (Test-Connection -ComputerName "MAILGATEWAY" -Count 1 -Quiet){
+        If($_.LoadIndex -ge '9900') {
+            Send-MailMessage    -To "ALERTEMAIL@ALERT.COM" `
+                                -From "$($MachineName) <citrixalerts@DOMAINNAME>" `
+						        -Subject "$($MachineName): Load Index Critical" `
+						        -Body "$($MachineName) has reached a citrical load index of $($LoadIndex)" `
+						        -SmtpServer "MAILSERVER"
+        }
+    }
+}
