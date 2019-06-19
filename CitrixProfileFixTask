@@ -1,0 +1,86 @@
+Start-Transcript "$env:SystemDrive\Scripts\CTXProfileFix.log"
+Add-PSSnapin Citrix.*
+Import-Module ActiveDirectory
+
+$ErrorActionPreference = "Stop"
+$ADUser = $null
+$CTXFarm = $null
+$CurrentSessions = $null
+
+$ADUser = Get-Content "$env:SystemDrive\Temp\UserOutput.txt"
+
+If ($ADUser -is [array]) {
+    Throw "Array of users is forbidden. Ending script."
+}
+
+$ADUser = $ADUser | Get-AdUser
+
+$CurrentSessions = Get-BrokerSession -BrokeringUserName "DOMAIN\$($ADUser.SamAccountName)"
+$CTXFarm = Get-BrokerMachine | Select -ExpandProperty MachineName
+$CTXFarm = $CTXFarm.Replace("NEXTCARE\","")
+$CTXFarm = $CTXFarm | foreach {$_ + ".corp.nextcare.com"}
+
+$LogOffTime = 0
+
+While (($CurrentSessions) -and ($LogOffTime -lt 12)) {
+    $CurrentSessions | Foreach {
+        If (!($_.LogOffInProgress)) {
+            $_ | Stop-BrokerSession
+        }
+    }
+    Start-Sleep -Seconds 10
+    $CurrentSessions = Get-BrokerSession -BrokeringUserName "DOMAIN\$($ADUser.SamAccountName)"
+    $LogOffTime++
+}
+
+If (Get-BrokerSession -BrokeringUserName "NEXTCARE\$($ADUser.SamAccountName)") {    
+    Throw "Session(s) in a stuck state. Please contact Infrastructure." 
+}
+
+Invoke-Command -ComputerName $CTXFarm -ScriptBlock {
+
+    New-PSDrive -PSProvider "Registry" -Name "HKU" -Root "HKEY_USERS"
+
+    $ProfileList = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$($using:ADUser.SID)"
+    $ProfileListBAK = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$($using:ADUser.SID).bak"
+    $ProfileGUID = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileGuid\{$($using:ADUser.ObjectGUID)}"
+    $ProfilePath = "$env:SystemDrive\Users\$($using:ADUser.SamAccountName)"
+
+        If (Test-Path "HKU:\$($using:ADUser.SID)") {
+            reg unload "HKU:\$($using:ADUser.SID)"
+        }
+
+        If (Test-Path "HKU:\$($using:ADUser.SID)_'Classes'") {
+            reg unload "HKU:\$($using:ADUser.SID)_'Classes'"
+        }
+
+        If ($ProfileList) {
+            Remove-Item -Path "$ProfileList\$($using:ADUser.SID)" -Force
+        }
+
+        If ($ProfileListBAK) {
+            Remove-Item -Path "$ProfileListBAK" -Force
+        }
+
+        If ($ProfileGUID) {
+            Remove-Item -Path "$ProfileGUID" -Force
+        }
+    
+        If ($ProfilePath) {
+            Remove-Item -Path $ProfilePath -Force -Recurse
+        }
+
+    Remove-PSDrive "HKU"
+
+}
+
+$RoamingProfile = $Null
+$RoamingProfile = Get-Childitem "\\SHARE\ctxprofiles$\USERNAME"
+
+If($RoamingProfile.Count -ge "1") {
+    $RoamingProfile | Remove-Item -Force -Recurse  
+} else {
+    Write-Output "Profile directory is empty."    
+}
+
+Stop-Transcript
